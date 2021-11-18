@@ -1,0 +1,357 @@
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html charset=iso-8859-1">
+    <title>Repo</title>
+
+    <link rel="stylesheet" type="text/css" href="js/ext-all.css" />
+
+    <script type="text/javascript" src="js/ext-base.js"></script>
+    <script type="text/javascript" src="js/ext-all.js"></script>
+
+    <script type="text/javascript" src="const/endpoint.js"></script>
+
+    <script type="text/javascript" src="ux/SearchField.js"></script>
+
+    <style type="text/css">
+        #search-results a {
+            color: #385F95;
+            font: bold 11px tahoma, arial, helvetica, sans-serif;
+            text-decoration: none;
+        }
+
+        #search-results a:hover {
+            text-decoration: underline;
+        }
+
+        #search-results .search-item {
+            padding: 5px;
+        }
+
+        #search-results p {
+            margin: 3px !important;
+        }
+
+        #search-results {
+            border-bottom: 1px solid #ddd;
+            margin: 0 1px;
+            height: 300px;
+            overflow: auto;
+        }
+
+        #search-results .x-toolbar {
+            border: 0 none;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <div class="col">
+            <div id="panel-repo"></div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+    Ext.onReady(function(){
+        let repoCurrentPage = 1
+        let startTemp = 0
+
+        let limitValue = 20
+
+        let repoStore = new Ext.data.Store({
+            proxy: new Ext.data.HttpProxy({
+                url: SEARCH_REPO,
+                method: 'GET',
+                restful: true,
+            }),
+            baseParams: {
+                q: 'twitter-lda',
+                per_page: limitValue,
+                limit: limitValue,
+                page: repoCurrentPage
+            },
+            reader: new Ext.data.JsonReader({
+                root: 'items',
+                totalProperty: 'total_count',
+                id: 'id'
+            }, [
+                {name: 'id', mapping: 'id'},
+                {name: 'node_id', mapping: 'node_id'},
+                {name: 'name', mapping: 'name'},
+                {name: 'full_name', mapping: 'full_name'},
+                {name: 'description', mapping: 'description'},
+                {name: 'language', mapping: 'language'},
+                {name: 'repo_url', mapping: 'html_url'},
+                {name: 'owner_url', mapping: 'owner.html_url'},
+                {name: 'watchers_count', mapping: 'watchers_count'},
+                {name: 'stargazers_count', mapping: 'stargazers_count'},
+                {name: 'forks_count', mapping: 'forks_count'},
+                {name: 'open_issues_count', mapping: 'open_issues_count'},
+                {name: 'created_at', mapping: 'created_at'},
+                {name: 'updated_at', mapping: 'updated_at'},
+                {name: 'author', mapping: 'owner.login'},
+                {name: 'author_avatar', mapping: 'owner.avatar_url'},
+            ]),
+        })
+
+        var repoDetailXTemplate = new Ext.XTemplate(
+            '<p style="vertical-align:top">' +
+                '<h3>{name}</h3>' +
+                '<a href="{repo_url}" target="_blank">{repo_url}</a>' +
+                '<br />' +
+                '<br />' +
+                '{description}' +
+                '<br />' +
+                '<br />' +
+                'Language: {language}' +
+                '<br />' +
+                '<br />' +
+                'Created: {created_at}' +
+                '<br />' +
+                'Last updated: {updated_at}' +
+            '</p>'
+		)
+
+        var ownerDetailXTemplate = new Ext.XTemplate(
+            '<p style="vertical-align:top">' +
+                '<img width="80" height="80" src="{author_avatar}" />' +
+                '<br />' +
+                '<br />' +
+                '{author}' +
+                '<br />' +
+                '<a href="{owner_url}" target="_blank">{owner_url}</a>' +
+            '</p>'
+		)
+
+        var repoPanel = new Ext.Panel({
+            html: '<p style="font-weight:bold">' +
+                        '<table width="100%" cellpadding="15" cellspacing="5" style="vertical-align:top">' +
+                            '<tr>' +
+                                '<td align="center">No repository selected</td>' +
+                            '</tr>' +
+                        '</table>' +
+                    '</p>'
+        })
+
+        var ownerPanel = new Ext.Panel({
+            html: ''
+        })
+
+        var repoFieldSet = new Ext.form.FieldSet({
+            anchor : '100%',
+            autoHeight : true,
+            title: 'Repository detail',
+            defaultType : 'textfield',
+            items : [
+                repoPanel
+            ]
+        })
+
+        var ownerFieldSet = new Ext.form.FieldSet({
+            anchor : '100%',
+            autoHeight : true,
+            title: 'Owner detail',
+            defaultType : 'textfield',
+            items : [
+                ownerPanel
+            ]
+        })
+
+        var repoFormPanel = new Ext.FormPanel({
+            id: 'repo-form',
+            frame: true,
+            width: 350,
+            defaults: {
+                width: 230
+            },
+            items: [
+                repoFieldSet,
+                ownerFieldSet,
+            ],
+            buttons: [
+                {
+                    text: 'Close',
+                    handler: function(){
+                        repoWindow.hide()
+                    }
+                }
+            ]
+        })
+
+        var repoWindow = new Ext.Window({
+            title: 'Detail',
+            closable: true,
+            closeAction: 'hide',
+            draggable: true,
+            autoScroll: true,
+            items: [
+                repoFormPanel,
+            ],
+            listeners: {
+                show: function(repoWindow){
+                    let repoData = repoEditorGridPanel.getSelectionModel().getSelected().data
+                    
+                    repoDetailXTemplate.overwrite(repoPanel.body, repoData)
+                    ownerDetailXTemplate.overwrite(ownerPanel.body, repoData)
+
+                    repoWindow.setHeight(repoFormPanel.getLayout().container.lastSize.height)
+                },
+                hide: function(repoWindow){
+                    // if(repoEditorGridPanel.collapsed){
+                    //     repoEditorGridPanel.toggleCollapse()
+                    // }
+                }
+            }
+        })
+
+        var repoColumnModel = new Ext.grid.ColumnModel(
+            [
+                {
+                    header: 'Id',
+                    dataIndex: 'id',
+                    width: 150,
+                    sortable: true,
+                    hidden : true,
+                    renderer: Ext.util.Format.number('0,000.00')
+                },
+                {
+                    header: 'Name',
+                    dataIndex: 'full_name',
+                    width: 100,
+                    sortable: true
+                },
+                {
+                    header: 'Author',
+                    dataIndex: 'author',
+                    width: 60,
+                    sortable: true,
+                    renderer: function(v, params, record) {
+                        return `<img width="16" height="16" src="${record.data.author_avatar}" /> ${v}`
+                    }
+                },
+                {
+                    header: 'Description',
+                    dataIndex: 'description',
+                    width: 200,
+                },
+                {
+                    header: 'URL',
+                    dataIndex: 'html_url',
+                    width: 100,
+                },
+                {
+                    header: 'Watchers',
+                    dataIndex: 'watchers_count',
+                    width: 20,
+                    sortable: true
+                },
+                {
+                    header: 'Stars',
+                    dataIndex: 'stargazers_count',
+                    width: 20,
+                    sortable: true
+                },
+                {
+                    header: 'Forks',
+                    dataIndex: 'forks_count',
+                    width: 20,
+                    sortable: true
+                },
+                {
+                    header: 'Open Issues',
+                    dataIndex: 'open_issues_count',
+                    width: 40,
+                    sortable: true
+                },
+                {
+                    header: 'Updated Date',
+                    dataIndex: 'updated_at',
+                    width: 80,
+                    sortable: true
+                },
+            ]
+        )
+
+        var repoSearchField = new Ext.ux.form.SearchField({
+            store: repoStore,
+            paramName: 'q',
+            listeners:{
+                specialkey: function(f,e){
+                    if(e.getKey() == e.ENTER){
+                        repoStore.baseParams = {
+                            per_page: limitValue,
+                            page: 1
+                        }
+
+                        if(repoWindow.isVisible(true))
+                            repoWindow.hide()
+                    }
+                    
+                },
+                render: function(c){
+                }
+            },
+            width: 160
+        })
+
+        var repoEditorGridPanel =  new Ext.grid.EditorGridPanel({
+            el: 'panel-repo',
+            title: 'Repos',
+            autoHeight: true,
+            store: repoStore,
+            cm: repoColumnModel,
+            enableColLock: false,
+            frame: true,
+            loadMask: new Ext.LoadMask(Ext.getBody(), {msg:"Loading amazing repositories..."}),
+            selModel: new Ext.grid.RowSelectionModel({
+                singleSelect: true,
+            }),
+            viewConfig: { 
+                forceFit: true
+            },
+            tbar: [
+                repoSearchField,
+            ],
+            bbar: new Ext.PagingToolbar({
+                store: repoStore,
+                displayInfo: true,
+                listeners: {
+                    'beforechange': function(pagingToolbar, params) {
+                        if (startTemp < params['start']) {
+                            startTemp = params['start']
+                            repoCurrentPage = repoCurrentPage + 1
+
+                            repoStore.baseParams.page = repoCurrentPage
+                        }
+
+                        if (startTemp > params['start']) {
+                            startTemp = params['start']
+                            repoCurrentPage = repoCurrentPage - 1
+
+                            repoStore.baseParams.page = repoCurrentPage
+                        }
+                    }
+                }
+            }),
+            listeners: {
+                'dblclick': function () {
+                    repoWindow.show()
+                }
+            }
+        })
+
+        repoEditorGridPanel.render()
+
+        repoStore.load({
+            params: { 
+                per_page: limitValue,
+                page: 1
+            }
+        })
+    })
+
+    </script>
+</body>
+
+</html>
